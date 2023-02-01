@@ -5,7 +5,7 @@ from collections import deque
 from snake_gameai import SnakeGameAI,Direction,Point,BLOCK_SIZE
 from model import Linear_QNet,QTrainer
 from Helper import plot
-MAX_MEMORY = 100_000
+MAX_MEMORY = 100_000_000
 BATCH_SIZE = 1000
 LR = 0.001
 
@@ -17,66 +17,28 @@ class Agent:
         self.epsilon = 0 # Randomness
         self.gamma = 0.9 # discount rate
         self.memory = deque(maxlen=MAX_MEMORY) # popleft()
-        self.model = Linear_QNet(12,256,4) 
+        self.model = Linear_QNet(10,64,5) 
         self.trainer = QTrainer(self.model,lr=LR,gamma=self.gamma)
-        # for n,p in self.model.named_parameters():
-        #     print(p.device,'',n) 
-        # self.model.to('cuda')   
-        # for n,p in self.model.named_parameters():
-        #     print(p.device,'',n)         
-        # TODO: model,trainer
 
-    # state (11 Values)
-    #[ danger straight, danger right, danger left,
-    #   
-    # direction left, direction right,
-    # direction up, direction down
-    # 
-    # food left,food right,
-    # food up, food down]
     def get_state(self,game):
-        head = game.snake[0]
+        head = game.head
         point_l=Point(head.x - BLOCK_SIZE, head.y)
         point_r=Point(head.x + BLOCK_SIZE, head.y)
         point_u=Point(head.x, head.y - BLOCK_SIZE)
         point_d=Point(head.x, head.y + BLOCK_SIZE)
 
-        dir_l = game.direction == Direction.LEFT
-        dir_r = game.direction == Direction.RIGHT
-        dir_u = game.direction == Direction.UP
-        dir_d = game.direction == Direction.DOWN
-
         state = [
-            # Danger Straight
-            (dir_u and game.is_collision(point_u))or
-            (dir_d and game.is_collision(point_d))or
-            (dir_l and game.is_collision(point_l))or
-            (dir_r and game.is_collision(point_r)),
-
-            # Danger right
-            (dir_u and game.is_collision(point_r))or
-            (dir_d and game.is_collision(point_l))or
-            (dir_u and game.is_collision(point_u))or
-            (dir_d and game.is_collision(point_d)),
-
-            #Danger Left
-            (dir_u and game.is_collision(point_r))or
-            (dir_d and game.is_collision(point_l))or
-            (dir_r and game.is_collision(point_u))or
-            (dir_l and game.is_collision(point_d)),
-
-            # Move Direction
-            dir_l,
-            dir_r,
-            dir_u,
-            dir_d,
+           game.is_collision(point_u),
+           game.is_collision(point_r),
+           game.is_collision(point_d),
+           game.is_collision(point_l),
 
             #Food Location
             game.food.x < game.head.x, # food is in left
             game.food.x > game.head.x, # food is in right
             game.food.y < game.head.y, # food is up
             game.food.y > game.head.y,  # food is down
-            abs(game.food.y - game.head.y) == 1 and
+            abs(game.food.y - game.head.y) == 1,
             abs(game.food.x - game.head.x) == 1
         ]
         return np.array(state,dtype=int)
@@ -98,9 +60,9 @@ class Agent:
     def get_action(self,state):
         # random moves: tradeoff explotation / exploitation
         self.epsilon = 80 - self.n_game
-        final_move = [0,0,0,0]
+        final_move = [0,0,0,0,0]
         if(random.randint(0,200)<self.epsilon):
-            move = random.randint(0,3)
+            move = random.randint(0,4) # TODO: Should be constant
             final_move[move]=1
         else:
             state0 = torch.tensor(state,dtype=torch.float, device=device)
